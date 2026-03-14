@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Mini Hotel System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- STARTUP screen -->
+    <div id="startup" class="screen active">
+        <h1>Welcome</h1>
+        <button id="customerBtn">Customer</button>
+        <button id="adminBtn">Admin</button>
+    </div>
+
+    <!-- LOGIN screen -->
+    <div id="loginScreen" class="screen hidden">
+        <h2 id="loginTitle">Login</h2>
+        <input id="loginUser" placeholder="Username">
+        <input id="loginPass" type="password" placeholder="Password">
+        <div id="loginError" class="error"></div>
+        <button id="loginSubmit">Login</button>
+        <button id="goSignup" class="hidden">Sign Up</button>
+    </div>
+
+    <!-- SIGNUP screen -->
+    <div id="signupScreen" class="screen hidden">
+        <h2>Customer Signup</h2>
+        <input id="sName" placeholder="Name">
+        <input id="sEmail" placeholder="Email">
+        <input id="sUser" placeholder="Username">
+        <input id="sPass" type="password" placeholder="Password">
+        <input id="sCard" placeholder="Credit Card Number">
+        <div id="signupError" class="error"></div>
+        <button id="signupSubmit">Create Account</button>
+    </div>
+
+    <!-- Customer Dashboard -->
+    <div id="customerDash" class="screen hidden">
+        <h1>Customer Dashboard (placeholder)</h1>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="adminDash" class="screen hidden">
+        <h1>Admin Dashboard (placeholder)</h1>
+    </div>
+
+    <script type="module" src="renderer.js"></script>
+</body>
+</html>
