@@ -1,6 +1,6 @@
 //
-// experimental/as_single.hpp
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~
+// experimental/impl/as_single.hpp
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //
 // Copyright (c) 2003-2025 Christopher M. Kohlhoff (chris at kohlhoff dot com)
 //
@@ -8,125 +8,174 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#ifndef ASIO_EXPERIMENTAL_AS_SINGLE_HPP
-#define ASIO_EXPERIMENTAL_AS_SINGLE_HPP
+#ifndef ASIO_IMPL_EXPERIMENTAL_AS_SINGLE_HPP
+#define ASIO_IMPL_EXPERIMENTAL_AS_SINGLE_HPP
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1200)
 # pragma once
 #endif // defined(_MSC_VER) && (_MSC_VER >= 1200)
 
 #include "asio/detail/config.hpp"
+#include <tuple>
+#include "asio/associator.hpp"
+#include "asio/async_result.hpp"
+#include "asio/detail/handler_cont_helpers.hpp"
+#include "asio/detail/initiation_base.hpp"
 #include "asio/detail/type_traits.hpp"
 
 #include "asio/detail/push_options.hpp"
 
 namespace asio {
 namespace experimental {
+namespace detail {
 
-/// A @ref completion_token adapter used to specify that the completion handler
-/// arguments should be combined into a single argument.
-/**
- * The as_single_t class is used to indicate that any arguments to the
- * completion handler should be combined and passed as a single argument.
- * If there is already one argument, that argument is passed as-is. If
- * there is more than argument, the arguments are first moved into a
- * @c std::tuple and that tuple is then passed to the completion handler.
- */
-template <typename CompletionToken>
-class as_single_t
+// Class to adapt a as_single_t as a completion handler.
+template <typename Handler>
+class as_single_handler
 {
 public:
-  /// Tag type used to prevent the "default" constructor from being used for
-  /// conversions.
-  struct default_constructor_tag {};
+  typedef void result_type;
 
-  /// Default constructor.
-  /**
-   * This constructor is only valid if the underlying completion token is
-   * default constructible and move constructible. The underlying completion
-   * token is itself defaulted as an argument to allow it to capture a source
-   * location.
-   */
-  constexpr as_single_t(
-      default_constructor_tag = default_constructor_tag(),
-      CompletionToken token = CompletionToken())
-    : token_(static_cast<CompletionToken&&>(token))
+  template <typename CompletionToken>
+  as_single_handler(as_single_t<CompletionToken> e)
+    : handler_(static_cast<CompletionToken&&>(e.token_))
   {
   }
 
-  /// Constructor.
-  template <typename T>
-  constexpr explicit as_single_t(
-      T&& completion_token)
-    : token_(static_cast<T&&>(completion_token))
+  template <typename RedirectedHandler>
+  as_single_handler(RedirectedHandler&& h)
+    : handler_(static_cast<RedirectedHandler&&>(h))
   {
   }
 
-  /// Adapts an executor to add the @c as_single_t completion token as the
-  /// default.
-  template <typename InnerExecutor>
-  struct executor_with_default : InnerExecutor
+  void operator()()
   {
-    /// Specify @c as_single_t as the default completion token type.
-    typedef as_single_t default_completion_token_type;
+    static_cast<Handler&&>(handler_)();
+  }
 
-    /// Construct the adapted executor from the inner executor type.
-    executor_with_default(const InnerExecutor& ex) noexcept
-      : InnerExecutor(ex)
-    {
-    }
-
-    /// Convert the specified executor to the inner executor type, then use
-    /// that to construct the adapted executor.
-    template <typename OtherExecutor>
-    executor_with_default(const OtherExecutor& ex,
-        constraint_t<
-          is_convertible<OtherExecutor, InnerExecutor>::value
-        > = 0) noexcept
-      : InnerExecutor(ex)
-    {
-    }
-  };
-
-  /// Type alias to adapt an I/O object to use @c as_single_t as its
-  /// default completion token type.
-  template <typename T>
-  using as_default_on_t = typename T::template rebind_executor<
-      executor_with_default<typename T::executor_type>>::other;
-
-  /// Function helper to adapt an I/O object to use @c as_single_t as its
-  /// default completion token type.
-  template <typename T>
-  static typename decay_t<T>::template rebind_executor<
-      executor_with_default<typename decay_t<T>::executor_type>
-    >::other
-  as_default_on(T&& object)
+  template <typename Arg>
+  void operator()(Arg&& arg)
   {
-    return typename decay_t<T>::template rebind_executor<
-        executor_with_default<typename decay_t<T>::executor_type>
-      >::other(static_cast<T&&>(object));
+    static_cast<Handler&&>(handler_)(static_cast<Arg&&>(arg));
+  }
+
+  template <typename... Args>
+  void operator()(Args&&... args)
+  {
+    static_cast<Handler&&>(handler_)(
+        std::make_tuple(static_cast<Args&&>(args)...));
   }
 
 //private:
-  CompletionToken token_;
+  Handler handler_;
 };
 
-/// Adapt a @ref completion_token to specify that the completion handler
-/// arguments should be combined into a single argument.
-template <typename CompletionToken>
-ASIO_NODISCARD inline
-constexpr as_single_t<decay_t<CompletionToken>>
-as_single(CompletionToken&& completion_token)
+template <typename Handler>
+inline bool asio_handler_is_continuation(
+    as_single_handler<Handler>* this_handler)
 {
-  return as_single_t<decay_t<CompletionToken>>(
-      static_cast<CompletionToken&&>(completion_token));
+  return asio_handler_cont_helpers::is_continuation(
+        this_handler->handler_);
 }
 
+template <typename Signature>
+struct as_single_signature
+{
+  typedef Signature type;
+};
+
+template <typename R>
+struct as_single_signature<R()>
+{
+  typedef R type();
+};
+
+template <typename R, typename Arg>
+struct as_single_signature<R(Arg)>
+{
+  typedef R type(Arg);
+};
+
+template <typename R, typename... Args>
+struct as_single_signature<R(Args...)>
+{
+  typedef R type(std::tuple<decay_t<Args>...>);
+};
+
+} // namespace detail
 } // namespace experimental
+
+#if !defined(GENERATING_DOCUMENTATION)
+
+template <typename CompletionToken, typename Signature>
+struct async_result<experimental::as_single_t<CompletionToken>, Signature>
+{
+  template <typename Initiation>
+  struct init_wrapper : detail::initiation_base<Initiation>
+  {
+    using detail::initiation_base<Initiation>::initiation_base;
+
+    template <typename Handler, typename... Args>
+    void operator()(Handler&& handler, Args&&... args) &&
+    {
+      static_cast<Initiation&&>(*this)(
+          experimental::detail::as_single_handler<decay_t<Handler>>(
+            static_cast<Handler&&>(handler)),
+          static_cast<Args&&>(args)...);
+    }
+
+    template <typename Handler, typename... Args>
+    void operator()(Handler&& handler, Args&&... args) const &
+    {
+      static_cast<const Initiation&>(*this)(
+          experimental::detail::as_single_handler<decay_t<Handler>>(
+            static_cast<Handler&&>(handler)),
+          static_cast<Args&&>(args)...);
+    }
+  };
+
+  template <typename Initiation, typename RawCompletionToken, typename... Args>
+  static auto initiate(Initiation&& initiation,
+      RawCompletionToken&& token, Args&&... args)
+    -> decltype(
+      async_initiate<CompletionToken,
+        typename experimental::detail::as_single_signature<Signature>::type>(
+          init_wrapper<decay_t<Initiation>>(
+            static_cast<Initiation&&>(initiation)),
+          token.token_, static_cast<Args&&>(args)...))
+  {
+    return async_initiate<CompletionToken,
+      typename experimental::detail::as_single_signature<Signature>::type>(
+        init_wrapper<decay_t<Initiation>>(
+          static_cast<Initiation&&>(initiation)),
+        token.token_, static_cast<Args&&>(args)...);
+  }
+};
+
+template <template <typename, typename> class Associator,
+    typename Handler, typename DefaultCandidate>
+struct associator<Associator,
+    experimental::detail::as_single_handler<Handler>, DefaultCandidate>
+  : Associator<Handler, DefaultCandidate>
+{
+  static typename Associator<Handler, DefaultCandidate>::type get(
+      const experimental::detail::as_single_handler<Handler>& h) noexcept
+  {
+    return Associator<Handler, DefaultCandidate>::get(h.handler_);
+  }
+
+  static auto get(const experimental::detail::as_single_handler<Handler>& h,
+      const DefaultCandidate& c) noexcept
+    -> decltype(Associator<Handler, DefaultCandidate>::get(h.handler_, c))
+  {
+    return Associator<Handler, DefaultCandidate>::get(h.handler_, c);
+  }
+};
+
+#endif // !defined(GENERATING_DOCUMENTATION)
+
 } // namespace asio
 
 #include "asio/detail/pop_options.hpp"
 
-#include "asio/experimental/impl/as_single.hpp"
-
-#endif // ASIO_EXPERIMENTAL_AS_SINGLE_HPP
+#endif // ASIO_IMPL_EXPERIMENTAL_AS_SINGLE_HPP
