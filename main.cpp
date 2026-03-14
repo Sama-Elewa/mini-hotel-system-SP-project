@@ -7,6 +7,11 @@
 using namespace std;
 using namespace crow;
 
+#define CTRL ios_base::sync_with_stdio(0); cin.tie(0); cout.tie(0);
+#define Z freopen("input.txt", "r", stdin);
+#define BSOR3A freopen("output.txt", "w", stdout);
+// these files are just for testing, instead of using the terminal, it just makes it easier
+
 // --- Data Models (exactly required fields) ---
 
 struct Customer {
@@ -42,6 +47,8 @@ static int nextCustomerId = []{
 }();
 
 int main() {
+    CTRL Z BSOR3A
+
     SimpleApp app;
 
     // --- POST /login ---
