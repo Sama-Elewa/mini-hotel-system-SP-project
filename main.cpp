@@ -184,6 +184,41 @@ int main() {
         return response{200, resp};
     });
 
+    // Serve index.html at root
+    CROW_ROUTE(app, "/")([](){
+        std::ifstream file("electron-frontend/renderer/index.html");
+        if (!file.is_open()) return crow::response(404, "index.html not found");
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        auto resp = crow::response{buffer.str()};
+        resp.set_header("Content-Type", "text/html");
+        return resp;
+    });
+
+    // Serve any static file in renderer/
+    CROW_ROUTE(app, "/<string>")([](const std::string& filename){
+        std::string path = "electron-frontend/renderer/" + filename;
+        std::ifstream file(path);
+        if (!file.is_open()) return crow::response(404, "File not found");
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        auto resp = crow::response{buffer.str()};
+
+        // MIME type detection
+        auto endsWith = [](const std::string& str, const std::string& suffix) {
+            return str.size() >= suffix.size() &&
+                str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+        };
+        if (endsWith(filename, ".css")) resp.set_header("Content-Type", "text/css");
+        else if (endsWith(filename, ".js")) resp.set_header("Content-Type", "application/javascript");
+        else if (endsWith(filename, ".html")) resp.set_header("Content-Type", "text/html");
+        else resp.set_header("Content-Type", "text/plain");
+
+        return resp;
+    });
+
     // Start server (no extra routes)
     app.port(18080).multithreaded().run();
     return 0;
