@@ -182,5 +182,3 @@ vite.config.ts.timestamp-*
 
 input.txt
 output.txt
-
-.vscode/
