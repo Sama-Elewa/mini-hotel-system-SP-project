@@ -12,7 +12,7 @@
                 "_UNICODE",
                 "CROW_ENABLE_ASIO"
             ],
-            "compilerPath": "",
+            "compilerPath": "g++",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "gcc-x64"
