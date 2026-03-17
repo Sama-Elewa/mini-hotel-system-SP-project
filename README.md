@@ -7,3 +7,13 @@ If you don’t want Git to show them as modified every time you run the program,
 ```bash
 git update-index --skip-worktree input.txt
 git update-index --skip-worktree output.txt
+```
+
+### First time building the project
+
+ You will likely face issues because of IntelliSense. 
+ So for your first time building the `main.cpp` file, open a new terminal in your project and run this:
+
+ ```bash
+g++ main.cpp -o main -std=c++17 -pthread -I. -lws2_32 -lmswsock
+```
